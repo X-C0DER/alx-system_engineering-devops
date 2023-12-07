@@ -1,16 +1,46 @@
-#!/usr/bin/env bash
-# Takes a subdomain and a domain and returns information about the subdomain
+#!/bin/bash
 
-print_info () {
-    dig "$1" | grep -A1 'ANSWER SECTION:' | sed -r "s/$1./$2/g" | awk -F" " ' NR==2 { print "The subdomain " $1 " is a " $4 " record and points to " $5 }'
+# Function to display usage information
+display_usage() {
+    echo "Usage: $0 <domain> [subdomain]"
+    echo "  domain: Domain name to audit"
+    echo "  subdomain (optional): Specific subdomain to audit"
+    exit 1
 }
 
-if [ "$#" -eq 2 ]
-then
-    print_info "$2.$1" "$2"
+# Function to query DNS and display information
+query_dns() {
+    subdomain=$1
+    domain=$2
+
+    # Query DNS and extract relevant information
+    result=$(dig "$subdomain.$domain" | awk '/^;; ANSWER SECTION:/ { getline; print }')
+
+    # Extract record type and destination
+    record_type=$(echo "$result" | awk '{print $4}')
+    destination=$(echo "$result" | awk '{print $5}')
+
+    # Display the information
+    echo "The subdomain $subdomain is a $record_type record and points to $destination"
+}
+
+# Check the number of arguments
+if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
+    display_usage
+fi
+
+# Set default subdomains
+subdomains=("www" "lb-01" "web-01" "web-02")
+
+# Process arguments
+domain=$1
+specified_subdomain=$2
+
+# Display information for specified subdomain or default subdomains
+if [ -n "$specified_subdomain" ]; then
+    query_dns "$specified_subdomain" "$domain"
 else
-    print_info "www.$1" "www"
-    print_info "lb-01.$1" "lb-01"
-    print_info "web-01.$1" "web-01"
-    print_info "web-02.$1" "web-02"
+    for subdomain in "${subdomains[@]}"; do
+        query_dns "$subdomain" "$domain"
+    done
 fi
